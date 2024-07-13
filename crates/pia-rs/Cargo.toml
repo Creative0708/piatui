@@ -1,0 +1,8 @@
+[package]
+name = "pia-rs"
+version = "0.1.0"
+authors = ["Colin Cai <therealcreative0708@gmail.com>"]
+edition.workspace = true
+license = "MIT OR Apache-2.0"
+
+[lib]
