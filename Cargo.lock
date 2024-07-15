@@ -3,6 +3,12 @@
 version = 3
 
 [[package]]
+name = "cfg-if"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
 name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12,6 +18,7 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 name = "pia-rs"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "serde",
  "serde_derive",
  "serde_json",
@@ -20,6 +27,9 @@ dependencies = [
 [[package]]
 name = "piatui"
 version = "0.1.0"
+dependencies = [
+ "pia-rs",
+]
 
 [[package]]
 name = "proc-macro2"

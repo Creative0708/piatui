@@ -1,30 +1,28 @@
-use std::{collections::HashMap, sync::{RwLock, RwLockReadGuard}};
+use std::{
+    collections::HashMap,
+    sync::{RwLock, RwLockReadGuard},
+};
 
 use crate::{ConstString, ServerCode};
 
+// No support for languages other than en-US for now, unfortunately :(
+// this is just a scaffold so far
+static LANGUAGE_REGISTRY: RwLock<Option<LanguageRegistry>> = RwLock::new(None);
 
-static LANGUAGE_REGISTRY: RwLock<LanguageRegistry> = RwLock::new(LanguageRegistry::null());
-
-pub fn language_registry() -> RwLockReadGuard<'static, LanguageRegistry> {
-    LANGUAGE_REGISTRY.read().expect("rwlock poisoned")
-}
+// pub fn language_registry() -> RwLockReadGuard<'static, LanguageRegistry> {
+//     LANGUAGE_REGISTRY.read().expect("rwlock poisoned")
+// }
 
 pub struct LanguageRegistry {
     pub code: LanguageCode,
     pub server_displays: HashMap<ServerCode, ServerDisplay>,
 }
-impl LanguageRegistry {
-    const fn null() -> Self {
-        todo!()
-    }
-}
+impl LanguageRegistry {}
 
 pub struct ServerDisplay {
     pub name: ConstString,
-    pub prefix: Option<ConstString>
+    pub prefix: Option<ConstString>,
 }
 
-
 #[derive(Debug, Clone, Hash)]
-pub struct LanguageCode(ConstString);
-
+pub struct LanguageCode(pub ConstString);
