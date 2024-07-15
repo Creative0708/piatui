@@ -2,7 +2,9 @@
 
 An attempt at a TUI client for the [Private Internet Access VPN](https://www.privateinternetaccess.com/).
 
-Wow! So much content here
+Currently incomplete.
+
+Also, this project isn't affiliated with PIA at all. It's just a project for myself to learn more about async Rust.
 
 # License
 
