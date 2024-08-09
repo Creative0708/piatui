@@ -1,13 +1,10 @@
-use std::{
-    collections::HashMap,
-    net::{IpAddr, Ipv4Addr},
-};
+use std::{collections::HashMap, net::Ipv4Addr};
 
 use serde_derive::{Deserialize, Serialize};
 
 use crate::{util::ServerMap, ConstString, ServerCode};
 
-use super::UnixTime;
+use super::{util::OptionalIpv4Addr, UnixTime};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DataEventParam {
@@ -83,7 +80,7 @@ pub struct ServerInfo {
     /// Common name.
     pub cn: String,
     /// IP address.
-    pub ip: IpAddr,
+    pub ip: Ipv4Addr,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -122,8 +119,8 @@ pub struct VPNState {
     pub available_locations: ServerMap<ServerState>,
     pub connection_state: ConnectionState,
     pub connected_server: Option<ConnectedServer>,
-    // pub external_ip: Option<Ipv4Addr>,
-    // pub external_vpn_ip: Option<Ipv4Addr>,
+    pub external_ip: OptionalIpv4Addr,
+    pub external_vpn_ip: OptionalIpv4Addr,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

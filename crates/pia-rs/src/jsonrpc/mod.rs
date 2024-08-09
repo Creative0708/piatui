@@ -98,14 +98,15 @@ impl DaemonJSONRPCReceiver {
     fn poll_raw(&mut self) -> io::Result<(u16, Vec<u8>)> {
         // message header
         let mut header_buf = [0u32; 3];
+
         self.inner
             .read_exact(bytemuck::cast_slice_mut(&mut header_buf))?;
-        if header_buf[0].to_ne_bytes() != PIA_LOCAL_SOCKET_MAGIC {
+        if header_buf[0].to_le_bytes() != PIA_LOCAL_SOCKET_MAGIC {
             return Result::Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
                     "expected {PIA_LOCAL_SOCKET_MAGIC:?} as header magic number, got {:?}",
-                    header_buf[0].to_ne_bytes()
+                    header_buf[0].to_le_bytes()
                 ),
             ));
         }
@@ -128,7 +129,23 @@ impl DaemonJSONRPCReceiver {
         }
 
         let mut buf = vec![0; length as usize];
-        self.inner.read_exact(&mut buf)?;
+        let mut bytes_read = 0;
+        loop {
+            let res = self.inner.read(&mut buf[bytes_read..]);
+            match res {
+                Ok(read) => {
+                    bytes_read += read;
+                    debug_assert!(bytes_read <= buf.len());
+                    if bytes_read == buf.len() {
+                        break;
+                    }
+                }
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(err) => return Err(err),
+            }
+        }
         Ok((seq_num, buf))
     }
 }

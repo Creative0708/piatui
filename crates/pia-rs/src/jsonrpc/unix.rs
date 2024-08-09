@@ -8,6 +8,7 @@ pub fn create() -> io::Result<(
     UnixSocketDaemonConnectionWriter,
 )> {
     let socket = UnixStream::connect("/opt/piavpn/var/daemon.sock")?;
+    socket.set_nonblocking(true)?;
     Ok((BufReader::new(socket.try_clone()?), BufWriter::new(socket)))
 }
 

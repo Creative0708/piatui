@@ -1,6 +1,5 @@
 use std::io;
 mod app;
-mod connection;
 
 use ratatui::{
     backend::CrosstermBackend,

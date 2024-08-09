@@ -1,7 +1,5 @@
 [workspace]
 resolver = "2"
-members = [
-    "crates/pia-rs",
-    "crates/piatui",
-]
+members = ["crates/pia-rs", "crates/piatui"]
 package.edition = "2021"
+package.license = "MIT OR Apache-2.0"
