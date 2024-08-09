@@ -40,10 +40,22 @@ pub static CONNECTION_INFO: ConnectionInfo = ConnectionInfo {
     remaining: AtomicU8::new(0),
 };
 
-pub fn take_connection() -> io::Result<Option<(DaemonJSONRPCReceiver, DaemonJSONRPCSender)>> {
+#[derive(Debug)]
+pub enum TakeConnectionError {
+    Io(io::Error),
+    AlreadyTaken,
+}
+impl From<io::Error> for TakeConnectionError {
+    fn from(inner: io::Error) -> Self {
+        Self::Io(inner)
+    }
+}
+
+pub fn take_connection() -> Result<(DaemonJSONRPCReceiver, DaemonJSONRPCSender), TakeConnectionError>
+{
     if CONNECTION_INFO.remaining.load(Ordering::Acquire) != 0 {
         // connection still exists
-        return Ok(None);
+        return Err(TakeConnectionError::AlreadyTaken);
     }
 
     let (reader, writer) = create()?;
@@ -51,10 +63,10 @@ pub fn take_connection() -> io::Result<Option<(DaemonJSONRPCReceiver, DaemonJSON
     CONNECTION_INFO.last_server_ack.store(0, Ordering::Release);
     CONNECTION_INFO.last_send_seq.store(0, Ordering::Release);
 
-    Ok(Some((
+    Ok((
         DaemonJSONRPCReceiver::new(reader),
         DaemonJSONRPCSender::new(writer),
-    )))
+    ))
 }
 
 pub struct DaemonJSONRPCReceiver {

@@ -1,0 +1,33 @@
+use std::io;
+
+use crate::{event, jsonrpc};
+
+pub use jsonrpc::TakeConnectionError;
+
+pub struct DaemonConnectionReceiver(jsonrpc::DaemonJSONRPCReceiver);
+impl DaemonConnectionReceiver {
+    fn new(inner: jsonrpc::DaemonJSONRPCReceiver) -> Self {
+        Self(inner)
+    }
+
+    pub fn poll(&mut self) -> io::Result<event::PIADaemonEvent> {
+        let bytes = self.0.poll()?;
+        Ok(serde_json::from_slice(&bytes)?)
+    }
+}
+
+pub struct DaemonConnectionSender(jsonrpc::DaemonJSONRPCSender);
+impl DaemonConnectionSender {
+    fn new(inner: jsonrpc::DaemonJSONRPCSender) -> Self {
+        Self(inner)
+    }
+}
+
+pub fn take_connection(
+) -> Result<(DaemonConnectionReceiver, DaemonConnectionSender), TakeConnectionError> {
+    let (rx, tx) = jsonrpc::take_connection()?;
+    Ok((
+        DaemonConnectionReceiver::new(rx),
+        DaemonConnectionSender::new(tx),
+    ))
+}
