@@ -10,8 +10,12 @@ use ratatui::{
     Frame,
 };
 
+use crate::connection::{self, ConnectionEvent};
+
 #[derive(Debug)]
 pub struct App {
+    connection: connection::DaemonConnection,
+
     is_running: bool,
     state: Option<VPNState>,
 }
@@ -23,15 +27,22 @@ impl App {
         self.is_running
     }
     pub fn handle_events(&mut self) -> io::Result<()> {
-        match crossterm::event::read()? {
-            crossterm::event::Event::Key(e)
-                if e.code == crossterm::event::KeyCode::Char('c')
-                    && e.modifiers
-                        .contains(crossterm::event::KeyModifiers::CONTROL) =>
-            {
-                self.is_running = false;
-            }
-            _ => (),
+        match self.connection.rx.recv().expect("thread closed channel???") {
+            ConnectionEvent::Crossterm(e) => match e {
+                crossterm::event::Event::Key(e)
+                    if e.code == crossterm::event::KeyCode::Char('c')
+                        && e.modifiers
+                            .contains(crossterm::event::KeyModifiers::CONTROL) =>
+                {
+                    self.is_running = false;
+                }
+                _ => (),
+            },
+            ConnectionEvent::Daemon(e) => match *e.event {
+                pia_rs::event::DaemonEventInner::Data([data]) => {
+                    self.state = Some(data.state);
+                }
+            },
         }
 
         Ok(())
@@ -40,6 +51,7 @@ impl App {
 impl Default for App {
     fn default() -> Self {
         Self {
+            connection: connection::DaemonConnection::take(),
             is_running: true,
             state: None,
         }

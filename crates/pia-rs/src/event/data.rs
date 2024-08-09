@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr},
-    time::SystemTime,
 };
 
 use serde_derive::{Deserialize, Serialize};
@@ -12,35 +11,35 @@ use super::UnixTime;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DataEventParam {
-    account: AccountData,
-    data: InnerData,
-    state: VPNState,
+    pub account: AccountData,
+    pub data: InnerData,
+    pub state: VPNState,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountData {
-    active: bool,
-    canceled: bool,
-    days_remaining: u32,
-    expiration_time: UnixTime,
-    expire_alert: bool,
-    expired: bool,
-    logged_in: bool,
-    needs_payment: bool,
-    plan: String,
-    recurring: bool,
+    pub active: bool,
+    pub canceled: bool,
+    pub days_remaining: u32,
+    pub expiration_time: UnixTime,
+    pub expire_alert: bool,
+    pub expired: bool,
+    pub logged_in: bool,
+    pub needs_payment: bool,
+    pub plan: String,
+    pub recurring: bool,
     #[serde(rename = "renewURL")]
-    renew_url: String,
-    renewable: bool,
-    username: String,
+    pub renew_url: String,
+    pub renewable: bool,
+    pub username: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct InnerData {
     // TODO
-    modern_latencies: ServerMap<u32>,
+    pub modern_latencies: ServerMap<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -123,8 +122,8 @@ pub struct VPNState {
     pub available_locations: ServerMap<ServerState>,
     pub connection_state: ConnectionState,
     pub connected_server: Option<ConnectedServer>,
-    pub external_ip: Option<Ipv4Addr>,
-    pub external_vpn_ip: Option<Ipv4Addr>,
+    // pub external_ip: Option<Ipv4Addr>,
+    // pub external_vpn_ip: Option<Ipv4Addr>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

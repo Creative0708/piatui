@@ -4,16 +4,16 @@ mod util;
 pub use util::UnixTime;
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct PIADaemonEvent {
+pub struct DaemonEvent {
     #[serde(rename = "jsonrpc")]
-    jsonrpc_version: String,
+    pub jsonrpc_version: String,
 
     #[serde(flatten)]
-    event: PIADaemonEventInner,
+    pub event: Box<DaemonEventInner>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "method", content = "params", rename_all = "lowercase")]
-pub enum PIADaemonEventInner {
+pub enum DaemonEventInner {
     Data([data::DataEventParam; 1]),
 }

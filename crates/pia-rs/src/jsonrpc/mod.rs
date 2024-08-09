@@ -69,6 +69,7 @@ pub fn take_connection() -> Result<(DaemonJSONRPCReceiver, DaemonJSONRPCSender),
     ))
 }
 
+#[derive(Debug)]
 pub struct DaemonJSONRPCReceiver {
     inner: PlatformDaemonConnectionReader,
 }
@@ -138,6 +139,7 @@ impl Drop for DaemonJSONRPCReceiver {
     }
 }
 
+#[derive(Debug)]
 pub struct DaemonJSONRPCSender {
     inner: PlatformDaemonConnectionWriter,
 }
