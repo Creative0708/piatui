@@ -4,13 +4,17 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::{util::ServerMap, ConstString, ServerCode};
 
-use super::{util::OptionalIpv4Addr, UnixTime};
+use super::{
+    state::DaemonState,
+    util::{Location, OptionalIpv4Addr},
+    UnixTime,
+};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DataEventParam {
     pub account: AccountData,
     pub data: InnerData,
-    pub state: VPNState,
+    pub state: DaemonState,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -97,37 +101,7 @@ pub struct State {
     // "automationCurrentNetworks": [],
     // "automationLastTrigger": null,
     // "automationSupportErrors": [],
-    available_locations: ServerMap<ServerState>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ServerState {
-    pub auto_safe: bool,
-    pub dedicated_ip: Option<ConstString>,
-    pub geo_located: bool,
-    pub has_shadowsocks: bool,
-    pub id: ServerCode,
-    pub latency: u32,
-    pub offline: bool,
-    pub port_forward: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct VPNState {
-    pub available_locations: ServerMap<ServerState>,
-    pub connection_state: ConnectionState,
-    pub connected_server: Option<ConnectedServer>,
-    pub external_ip: OptionalIpv4Addr,
-    pub external_vpn_ip: OptionalIpv4Addr,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct ConnectedServer {
-    common_name: String,
-    ip: Option<Ipv4Addr>,
+    available_locations: ServerMap<Location>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

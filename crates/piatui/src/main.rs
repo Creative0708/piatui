@@ -3,30 +3,35 @@ mod app;
 
 use ratatui::{
     backend::CrosstermBackend,
-    crossterm::{
-        terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
-        ExecutableCommand,
-    },
+    crossterm::{terminal, ExecutableCommand},
     Terminal,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut stdout = io::stdout();
-    stdout.execute(EnterAlternateScreen)?;
-    enable_raw_mode()?;
+    fn inner() -> Result<(), Box<dyn std::error::Error>> {
+        let mut stdout = io::stdout();
+        stdout.execute(terminal::EnterAlternateScreen)?;
+        stdout.execute(terminal::Clear(terminal::ClearType::All))?;
+        terminal::enable_raw_mode()?;
 
-    let mut terminal = Terminal::new(CrosstermBackend::new(stdout))?;
+        let mut terminal = Terminal::new(CrosstermBackend::new(stdout))?;
 
-    let mut app = app::App::default();
+        let mut app = app::App::default();
 
-    while app.is_running() {
-        terminal.draw(|frame| app.render_frame(frame))?;
-        app.handle_events()?;
+        while app.is_running() {
+            terminal.draw(|frame| app.render_frame(frame))?;
+            app.handle_events()?;
+        }
+
+        Ok(())
     }
 
-    terminal.backend_mut().execute(LeaveAlternateScreen)?;
+    let res = inner();
 
-    disable_raw_mode()?;
+    let mut stdout = io::stdout();
+    stdout.execute(terminal::LeaveAlternateScreen)?;
 
-    Ok(())
+    terminal::disable_raw_mode()?;
+
+    res
 }

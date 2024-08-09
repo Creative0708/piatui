@@ -141,7 +141,8 @@ impl DaemonJSONRPCReceiver {
                     }
                 }
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
-                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    // Other side is still writing; sleep for a bit
+                    std::thread::sleep(std::time::Duration::from_millis(1));
                 }
                 Err(err) => return Err(err),
             }

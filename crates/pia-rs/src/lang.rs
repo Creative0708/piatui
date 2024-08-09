@@ -3,6 +3,8 @@ use std::{
     sync::{RwLock, RwLockReadGuard},
 };
 
+use serde_derive::{Deserialize, Serialize};
+
 use crate::{ConstString, ServerCode};
 
 // No support for languages other than en-US for now, unfortunately :(
@@ -24,5 +26,6 @@ pub struct ServerDisplay {
     pub prefix: Option<ConstString>,
 }
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(transparent)]
 pub struct LanguageCode(pub ConstString);

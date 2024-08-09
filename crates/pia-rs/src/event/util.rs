@@ -8,6 +8,8 @@ use std::{
 use serde::{de, ser};
 use serde_derive::{Deserialize, Serialize};
 
+use crate::ServerCode;
+
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct UnixTime(pub u64);
@@ -52,4 +54,17 @@ impl<'de> de::Deserialize<'de> for OptionalIpv4Addr {
             Self(Some(net::Ipv4Addr::from_str(s).map_err(de::Error::custom)?))
         })
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Location {
+    pub auto_safe: bool,
+    pub dedicated_ip: Option<String>,
+    pub geo_located: bool,
+    pub has_shadowsocks: bool,
+    pub id: ServerCode,
+    pub latency: u32,
+    pub offline: bool,
+    pub port_forward: bool,
 }

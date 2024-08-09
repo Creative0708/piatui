@@ -1,8 +1,8 @@
 use std::io;
 
-use pia_rs::event::data::VPNState;
+use pia_rs::event::state::DaemonState;
 use ratatui::{
-    crossterm,
+    crossterm::{self, event::MouseButton},
     layout::Alignment,
     prelude::*,
     style::Stylize,
@@ -16,7 +16,7 @@ pub struct App {
     sender: pia_rs::DaemonConnectionSender,
 
     is_running: bool,
-    state: Option<VPNState>,
+    state: Option<DaemonState>,
 }
 impl App {
     pub fn render_frame(&self, frame: &mut Frame) {
@@ -78,7 +78,7 @@ impl Widget for &App {
 }
 
 struct MainInfo<'a> {
-    state: Option<&'a VPNState>,
+    state: Option<&'a DaemonState>,
 }
 
 impl Widget for MainInfo<'_> {

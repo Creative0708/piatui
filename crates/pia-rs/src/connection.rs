@@ -13,8 +13,11 @@ impl DaemonConnectionReceiver {
 
     pub fn poll(&mut self) -> io::Result<event::DaemonEvent> {
         let bytes = self.0.poll()?;
-        std::fs::write("/tmp/a.json", &bytes).unwrap();
-        Ok(serde_json::from_slice(&bytes)?)
+        let res = serde_json::from_slice(&bytes);
+        if res.is_err() {
+            std::fs::write("/tmp/a.json", &bytes).unwrap();
+        }
+        Ok(res?)
     }
 }
 

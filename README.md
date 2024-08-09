@@ -6,4 +6,4 @@ This project isn't affiliated with PIA at all. I just think that TUIs are neat a
 
 # License
 
-This entire project is dually licensed under either of the [Apache License, Version 2.0](/LICENSE-APACHE) or [MIT License](/LICENSE-MIT) at your option.
+This project copies documentation from the [PIA Desktop Application](https://github.com/pia-foss/desktop), which is licensed under [GPLv3 (or any later version)](https://github.com/pia-foss/desktop/blob/master/LICENSE.txt). The GPL is a viral license, so the entirety of this project is also licensed under [GPLv3 or later](/LICENSE).
