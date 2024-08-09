@@ -4,21 +4,21 @@
 //!
 //! This module is a rough translation of its C++ code to Rust. Go check out the [explanation](https://github.com/pia-foss/desktop/blob/522751571ea7f6b1a9e3dd5cc4c70fc2fd136221/common/src/ipc.cpp#L33) in the PIA repo for more details.
 
-use std::io::{self, Read};
+use std::{
+    io::{self, Read},
+    sync::atomic::{AtomicI32, AtomicU8, Ordering},
+};
 
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
         pub mod unix;
-        pub type PlatformDaemonConnectionReader = unix::UnixSocketDaemonConnection;
+        use unix::create;
+        type PlatformDaemonConnectionReader = unix::UnixSocketDaemonConnection;
+        type PlatformDaemonConnectionWriter = unix::UnixSocketDaemonConnection;
     } else {
         compile_error!("platform not implemented D:");
     }
 }
-
-const _: () = {
-    const fn sanity_check<T: DaemonJSONRPCConnectionTrait>() {}
-    sanity_check::<PlatformDaemonConnection>();
-};
 
 // Local socket magic number. always sent at the start of each frame
 const PIA_LOCAL_SOCKET_MAGIC: [u8; 4] = 0xFFACCE56u32.to_be_bytes();
@@ -26,22 +26,44 @@ const PIA_LOCAL_SOCKET_MAGIC: [u8; 4] = 0xFFACCE56u32.to_be_bytes();
 // Valid message sizes. Copied from PIA source
 const VALID_MESSAGE_SIZES: std::ops::RangeInclusive<u32> = 2..=1024 * 1024;
 
-pub struct DaemonJSONRPCConnection {
-    pub receiver: DaemonJSONRPCReceiver,
-    pub sender: DaemonJSONRPCSender,
+struct ConnectionInfo {
+    last_server_ack: AtomicI32,
+    last_send_seq: AtomicI32,
+
+    remaining: AtomicU8,
+}
+
+static CONNECTION_INFO: ConnectionInfo = ConnectionInfo {
+    last_server_ack: AtomicI32::new(0),
+    last_send_seq: AtomicI32::new(0),
+
+    remaining: AtomicU8::new(0),
+};
+
+pub fn take_connection() -> io::Result<Option<(DaemonJSONRPCReceiver, DaemonJSONRPCSender)>> {
+    if CONNECTION_INFO.remaining.load(Ordering::Acquire) != 0 {
+        // connection still exists
+        return Ok(None);
+    }
+
+    let (reader, writer) = create()?;
+
+    CONNECTION_INFO.last_server_ack.store(-1, Ordering::Release);
+    CONNECTION_INFO.last_send_seq.store(-1, Ordering::Release);
+
+    Ok(Some((
+        DaemonJSONRPCReceiver::new(reader),
+        DaemonJSONRPCSender::new(writer),
+    )))
 }
 
 pub struct DaemonJSONRPCReceiver {
-    inner: PlatformDaemonConnection,
+    inner: PlatformDaemonConnectionReader,
 }
 
 impl DaemonJSONRPCReceiver {
-    pub fn new() -> io::Result<Self> {
-        Ok(Self {
-            inner: PlatformDaemonConnection::new()?,
-            last_server_ack: None,
-            last_sent_seq: None,
-        })
+    fn new(inner: PlatformDaemonConnectionReader) -> Self {
+        Self { inner }
     }
 
     pub fn poll(&mut self) -> io::Result<Vec<u8>> {
@@ -49,7 +71,9 @@ impl DaemonJSONRPCReceiver {
             let (seq_num, msg) = self.poll_raw()?;
             if msg.is_empty() {
                 // message is an acknowledgement message; ignore
-                self.last_server_ack = Some(seq_num);
+                CONNECTION_INFO
+                    .last_server_ack
+                    .store(seq_num as i32, Ordering::Release);
             } else {
                 break Ok(msg);
             }
@@ -92,5 +116,20 @@ impl DaemonJSONRPCReceiver {
         let mut buf = vec![0; length as usize];
         self.inner.read_exact(&mut buf)?;
         Ok((seq_num, buf))
+    }
+}
+
+impl Drop for DaemonJSONRPCReceiver {
+    fn drop(&mut self) {
+        CONNECTION_INFO.remaining.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+pub struct DaemonJSONRPCSender {
+    inner: PlatformDaemonConnectionWriter,
+}
+impl DaemonJSONRPCSender {
+    fn new(inner: PlatformDaemonConnectionWriter) -> Self {
+        Self { inner }
     }
 }

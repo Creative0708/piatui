@@ -1,3 +1,3 @@
 fn main() {
-    pia_rs::DaemonJSONRPCConnection::new().unwrap();
+    let (mut rx, tx) = pia_rs::take_connection().unwrap().unwrap();
 }
