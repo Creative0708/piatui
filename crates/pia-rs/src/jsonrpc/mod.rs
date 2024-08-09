@@ -5,16 +5,16 @@
 //! This module is a rough translation of its C++ code to Rust. Go check out the [explanation](https://github.com/pia-foss/desktop/blob/522751571ea7f6b1a9e3dd5cc4c70fc2fd136221/common/src/ipc.cpp#L33) in the PIA repo for more details.
 
 use std::{
-    io::{self, Read},
-    sync::atomic::{AtomicI32, AtomicU8, Ordering},
+    io::{self, Read, Write},
+    sync::atomic::{AtomicU16, AtomicU8, Ordering},
 };
 
 cfg_if::cfg_if! {
     if #[cfg(unix)] {
         pub mod unix;
         use unix::create;
-        type PlatformDaemonConnectionReader = unix::UnixSocketDaemonConnection;
-        type PlatformDaemonConnectionWriter = unix::UnixSocketDaemonConnection;
+        type PlatformDaemonConnectionReader = unix::UnixSocketDaemonConnectionReader;
+        type PlatformDaemonConnectionWriter = unix::UnixSocketDaemonConnectionWriter;
     } else {
         compile_error!("platform not implemented D:");
     }
@@ -26,16 +26,16 @@ const PIA_LOCAL_SOCKET_MAGIC: [u8; 4] = 0xFFACCE56u32.to_be_bytes();
 // Valid message sizes. Copied from PIA source
 const VALID_MESSAGE_SIZES: std::ops::RangeInclusive<u32> = 2..=1024 * 1024;
 
-struct ConnectionInfo {
-    last_server_ack: AtomicI32,
-    last_send_seq: AtomicI32,
+pub struct ConnectionInfo {
+    last_server_ack: AtomicU16,
+    last_send_seq: AtomicU16,
 
     remaining: AtomicU8,
 }
 
-static CONNECTION_INFO: ConnectionInfo = ConnectionInfo {
-    last_server_ack: AtomicI32::new(0),
-    last_send_seq: AtomicI32::new(0),
+pub static CONNECTION_INFO: ConnectionInfo = ConnectionInfo {
+    last_server_ack: AtomicU16::new(0),
+    last_send_seq: AtomicU16::new(0),
 
     remaining: AtomicU8::new(0),
 };
@@ -48,8 +48,8 @@ pub fn take_connection() -> io::Result<Option<(DaemonJSONRPCReceiver, DaemonJSON
 
     let (reader, writer) = create()?;
 
-    CONNECTION_INFO.last_server_ack.store(-1, Ordering::Release);
-    CONNECTION_INFO.last_send_seq.store(-1, Ordering::Release);
+    CONNECTION_INFO.last_server_ack.store(0, Ordering::Release);
+    CONNECTION_INFO.last_send_seq.store(0, Ordering::Release);
 
     Ok(Some((
         DaemonJSONRPCReceiver::new(reader),
@@ -63,6 +63,7 @@ pub struct DaemonJSONRPCReceiver {
 
 impl DaemonJSONRPCReceiver {
     fn new(inner: PlatformDaemonConnectionReader) -> Self {
+        CONNECTION_INFO.remaining.fetch_add(1, Ordering::Relaxed);
         Self { inner }
     }
 
@@ -73,7 +74,7 @@ impl DaemonJSONRPCReceiver {
                 // message is an acknowledgement message; ignore
                 CONNECTION_INFO
                     .last_server_ack
-                    .store(seq_num as i32, Ordering::Release);
+                    .store(seq_num, Ordering::Release);
             } else {
                 break Ok(msg);
             }
@@ -96,11 +97,11 @@ impl DaemonJSONRPCReceiver {
             ));
         }
         let seq_shorts: [u16; 2] = bytemuck::cast(header_buf[1]);
-        let seq_low = (u16::from_le_bytes(seq_shorts[0].to_ne_bytes()) >> 4) as u8;
-        let seq_high = (u16::from_le_bytes(seq_shorts[1].to_ne_bytes()) >> 4) as u8;
+        let seq_low = (seq_shorts[0].to_le() >> 4) as u8;
+        let seq_high = (seq_shorts[1].to_le() >> 4) as u8;
         let seq_num = seq_low as u16 | (seq_high as u16) << 8;
 
-        let length = u32::from_le_bytes(header_buf[2].to_ne_bytes());
+        let length = header_buf[2].to_le();
 
         if length == 0 {
             return Ok((seq_num, vec![]));
@@ -130,6 +131,41 @@ pub struct DaemonJSONRPCSender {
 }
 impl DaemonJSONRPCSender {
     fn new(inner: PlatformDaemonConnectionWriter) -> Self {
+        CONNECTION_INFO.remaining.fetch_add(1, Ordering::Relaxed);
         Self { inner }
+    }
+
+    pub fn write(&mut self, bytes: &[u8]) -> io::Result<()> {
+        // can't do .into() :pensive:
+        const VALID_MESSAGE_SIZES_USIZE: std::ops::RangeInclusive<usize> =
+            *VALID_MESSAGE_SIZES.start() as usize..=*VALID_MESSAGE_SIZES.end() as usize;
+
+        assert!(VALID_MESSAGE_SIZES_USIZE.contains(&bytes.len()));
+
+        let seq = CONNECTION_INFO
+            .last_send_seq
+            .fetch_add(1, Ordering::SeqCst)
+            .wrapping_add(1);
+
+        // TODO: add checks for if the daemon is falling behind
+        let [seq_low, seq_hi] = seq.to_le_bytes();
+
+        self.inner
+            .write_all(&((seq_low as u16) << 4).to_le_bytes())?;
+        self.inner
+            .write_all(&((seq_hi as u16) << 4).to_le_bytes())?;
+        self.inner.write_all(&(bytes.len() as u32).to_le_bytes())?;
+        self.inner.write_all(bytes)?;
+
+        Ok(())
+    }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+impl Drop for DaemonJSONRPCSender {
+    fn drop(&mut self) {
+        CONNECTION_INFO.remaining.fetch_sub(1, Ordering::Relaxed);
     }
 }

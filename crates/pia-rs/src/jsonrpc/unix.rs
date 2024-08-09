@@ -1,9 +1,15 @@
-use std::{io, os::unix::net::UnixStream};
+use std::{
+    io::{self, BufReader, BufWriter},
+    os::unix::net::UnixStream,
+};
 
-pub fn create() -> io::Result<(UnixSocketDaemonConnection, UnixSocketDaemonConnection)> {
+pub fn create() -> io::Result<(
+    UnixSocketDaemonConnectionReader,
+    UnixSocketDaemonConnectionWriter,
+)> {
     let socket = UnixStream::connect("/opt/piavpn/var/daemon.sock")?;
-    Ok((socket.try_clone()?, socket))
+    Ok((BufReader::new(socket.try_clone()?), BufWriter::new(socket)))
 }
 
-// too lazy for newtype
-pub type UnixSocketDaemonConnection = UnixStream;
+pub type UnixSocketDaemonConnectionReader = BufReader<UnixStream>;
+pub type UnixSocketDaemonConnectionWriter = BufWriter<UnixStream>;
