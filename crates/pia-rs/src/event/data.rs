@@ -1,13 +1,20 @@
-use std::{collections::HashMap, net::IpAddr, time::SystemTime};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, Ipv4Addr},
+    time::SystemTime,
+};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{util::ServerMap, ConstString};
+use crate::{util::ServerMap, ConstString, ServerCode};
+
+use super::UnixTime;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DataEventParam {
     account: AccountData,
     data: InnerData,
+    state: VPNState,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -16,7 +23,7 @@ pub struct AccountData {
     active: bool,
     canceled: bool,
     days_remaining: u32,
-    expiration_time: SystemTime,
+    expiration_time: UnixTime,
     expire_alert: bool,
     expired: bool,
     logged_in: bool,
@@ -32,9 +39,8 @@ pub struct AccountData {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct InnerData {
+    // TODO
     modern_latencies: ServerMap<u32>,
-    // modernRegionMeta
-    regions: Vec<ServerRegion>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -75,9 +81,9 @@ pub enum VPNConnectionType {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerInfo {
-    /// Canonical name? idk
+    /// Common name.
     pub cn: String,
-    /// IP address of the server
+    /// IP address.
     pub ip: IpAddr,
 }
 
@@ -103,4 +109,41 @@ pub struct State {
 pub struct ServerState {
     pub auto_safe: bool,
     pub dedicated_ip: Option<ConstString>,
+    pub geo_located: bool,
+    pub has_shadowsocks: bool,
+    pub id: ServerCode,
+    pub latency: u32,
+    pub offline: bool,
+    pub port_forward: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct VPNState {
+    pub available_locations: ServerMap<ServerState>,
+    pub connection_state: ConnectionState,
+    pub connected_server: Option<ConnectedServer>,
+    pub external_ip: Option<Ipv4Addr>,
+    pub external_vpn_ip: Option<Ipv4Addr>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedServer {
+    common_name: String,
+    ip: Option<Ipv4Addr>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+
+pub enum ConnectionState {
+    // https://github.com/pia-foss/desktop/blob/522751571ea7f6b1a9e3dd5cc4c70fc2fd136221/client/res/components/helpers/ConnStateHelper.qml#L47-L65
+    Disconnected,
+    Connecting,
+    Reconnecting,
+    DisconnectingToReconnect,
+    Interrupted,
+    Connected,
+    Disconnecting,
 }

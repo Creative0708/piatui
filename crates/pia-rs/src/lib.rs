@@ -1,4 +1,4 @@
-mod event;
+pub mod event;
 mod util;
 pub use util::{ConstString, ServerCode};
 mod connection;

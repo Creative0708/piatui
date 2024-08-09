@@ -12,6 +12,7 @@ impl DaemonConnectionReceiver {
 
     pub fn poll(&mut self) -> io::Result<event::PIADaemonEvent> {
         let bytes = self.0.poll()?;
+        std::fs::write("/tmp/a.json", &bytes).unwrap();
         Ok(serde_json::from_slice(&bytes)?)
     }
 }

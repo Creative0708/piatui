@@ -1,5 +1,7 @@
-mod data;
+pub mod data;
 use serde_derive::{Deserialize, Serialize};
+mod util;
+pub use util::UnixTime;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PIADaemonEvent {
@@ -11,6 +13,7 @@ pub struct PIADaemonEvent {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+#[serde(tag = "method", content = "params", rename_all = "lowercase")]
 pub enum PIADaemonEventInner {
-    DataEvent(data::DataEventParam),
+    Data([data::DataEventParam; 1]),
 }
