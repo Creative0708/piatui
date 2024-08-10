@@ -116,7 +116,7 @@ pub struct DaemonState {
     /// provided in the Connected state)
     pub connected_server: Option<ConnectedServer>,
 
-    /// Available regions, mapped by region ID.  These are from either the      
+    /// Available regions, mapped by region ID.  These are from either the
     /// current or new regions list.  This includes both dedicated IP regions and
     /// regular regions, which are treated the same way by most logic referring
     /// to regions.
@@ -181,7 +181,6 @@ pub struct DaemonState {
     /// Set to false when waking up
     /// Note: Only implemented on macOS.
     pub system_sleeping: bool,
-
     /// These fields all indicate errors/warnings/notification conditions
     /// detected by the Daemon that can potentially be displayed in the client.
     /// The actual display semantics, including the message localization and
@@ -340,7 +339,8 @@ pub struct DaemonState {
     /// on Linux).
     pub wireguard_kernel_support: bool,
     /// The DNS servers prior to connecting
-    pub existing_d_n_s_servers: Vec<u32>,
+    #[serde(rename = "existingDNSServers")]
+    pub existing_dns_servers: Vec<u32>,
 
     /// Automation rules - indicates which rule has triggered, which rule
     /// currently matches, the rule that could be created for the current
@@ -514,8 +514,8 @@ pub struct Metadata {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CountryDisplay {
-    pub name: String,
-    pub prefix: String,
+    pub name: HashMap<LanguageCode, String>,
+    pub prefix: HashMap<LanguageCode, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -530,7 +530,7 @@ pub struct DynamicRole {
 #[serde(rename_all = "camelCase")]
 pub struct RegionDisplay {
     pub country: CountryCode,
-    pub geo_latitude: f32,
-    pub geo_longitude: f32,
+    pub geo_latitude: Option<f32>,
+    pub geo_longitude: Option<f32>,
     pub name: HashMap<LanguageCode, String>,
 }

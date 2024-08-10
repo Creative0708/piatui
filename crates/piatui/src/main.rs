@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         while app.is_running() {
             terminal.draw(|frame| app.render_frame(frame))?;
             app.handle_events()?;
+            std::thread::sleep(std::time::Duration::from_millis(100));
         }
 
         Ok(())

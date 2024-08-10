@@ -94,13 +94,39 @@ impl DaemonJSONRPCReceiver {
         }
     }
 
+    fn read_exact(&mut self, mut buf: &mut [u8], block: bool) -> io::Result<()> {
+        let mut is_first_loop: bool = true;
+        loop {
+            let res = self.inner.read(buf);
+
+            match res {
+                Ok(read) => {
+                    buf = &mut buf[read..];
+                    if buf.is_empty() {
+                        break;
+                    }
+                }
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    if !block && is_first_loop {
+                        return Err(err);
+                    }
+                    // other side is still writing; sleep for a bit
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) => return Err(err),
+            }
+            is_first_loop = false;
+        }
+        Ok(())
+    }
+
     /// Polls a message from the connection and returns the sequence number and its contents.
     fn poll_raw(&mut self) -> io::Result<(u16, Vec<u8>)> {
         // message header
-        let mut header_buf = [0u32; 3];
-
-        self.inner
-            .read_exact(bytemuck::cast_slice_mut(&mut header_buf))?;
+        let mut header_buf = [0; 12];
+        self.read_exact(&mut header_buf, false)?;
+        let header_buf: [u32; 3] = bytemuck::cast(header_buf);
         if header_buf[0].to_le_bytes() != PIA_LOCAL_SOCKET_MAGIC {
             return Result::Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -129,24 +155,7 @@ impl DaemonJSONRPCReceiver {
         }
 
         let mut buf = vec![0; length as usize];
-        let mut bytes_read = 0;
-        loop {
-            let res = self.inner.read(&mut buf[bytes_read..]);
-            match res {
-                Ok(read) => {
-                    bytes_read += read;
-                    debug_assert!(bytes_read <= buf.len());
-                    if bytes_read == buf.len() {
-                        break;
-                    }
-                }
-                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
-                    // Other side is still writing; sleep for a bit
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                }
-                Err(err) => return Err(err),
-            }
-        }
+        self.read_exact(&mut buf, true)?;
         Ok((seq_num, buf))
     }
 }
