@@ -6,7 +6,10 @@
 
 use std::{
     io::{self, Read, Write},
-    sync::atomic::{AtomicU16, AtomicU8, Ordering},
+    sync::{
+        atomic::{AtomicU16, AtomicU8, Ordering},
+        RwLock,
+    },
 };
 
 cfg_if::cfg_if! {
@@ -27,6 +30,8 @@ const PIA_LOCAL_SOCKET_MAGIC: [u8; 4] = 0xFFACCE56u32.to_be_bytes();
 const VALID_MESSAGE_SIZES: std::ops::RangeInclusive<u32> = 2..=1024 * 1024;
 
 pub struct ConnectionInfo {
+    global: RwLock<GlobalConnectionInfo>,
+
     last_server_ack: AtomicU16,
     last_send_seq: AtomicU16,
 
@@ -34,11 +39,19 @@ pub struct ConnectionInfo {
 }
 
 pub static CONNECTION_INFO: ConnectionInfo = ConnectionInfo {
+    global: RwLock::new(GlobalConnectionInfo {
+        jsonrpc_version: None,
+    }),
+
     last_server_ack: AtomicU16::new(0),
     last_send_seq: AtomicU16::new(0),
 
     remaining: AtomicU8::new(0),
 };
+
+struct GlobalConnectionInfo {
+    jsonrpc_version: Option<String>,
+}
 
 #[derive(Debug)]
 pub enum TakeConnectionError {
@@ -100,6 +113,7 @@ impl DaemonJSONRPCReceiver {
             let res = self.inner.read(buf);
 
             match res {
+                Ok(0) => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
                 Ok(read) => {
                     buf = &mut buf[read..];
                     if buf.is_empty() {
@@ -128,7 +142,7 @@ impl DaemonJSONRPCReceiver {
         self.read_exact(&mut header_buf, false)?;
         let header_buf: [u32; 3] = bytemuck::cast(header_buf);
         if header_buf[0].to_le_bytes() != PIA_LOCAL_SOCKET_MAGIC {
-            return Result::Err(io::Error::new(
+            return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
                     "expected {PIA_LOCAL_SOCKET_MAGIC:?} as header magic number, got {:?}",
@@ -148,7 +162,7 @@ impl DaemonJSONRPCReceiver {
         }
 
         if !VALID_MESSAGE_SIZES.contains(&length) {
-            return Result::Err(io::Error::new(
+            return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("invalid length {:?} in header", length),
             ));

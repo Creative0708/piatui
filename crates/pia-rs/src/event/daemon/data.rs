@@ -2,19 +2,18 @@ use std::{collections::HashMap, net::Ipv4Addr};
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{util::ServerMap, ConstString, ServerCode};
+use crate::util::ServerMap;
 
-use super::{
-    state::DaemonState,
-    util::{Location, OptionalIpv4Addr},
-    UnixTime,
-};
+use super::{util::Location, UnixTime};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DataEventParam {
-    pub account: AccountData,
-    pub data: InnerData,
-    pub state: DaemonState,
+    #[serde(default)]
+    pub account: Option<serde_json::Map<String, serde_json::Value>>,
+    #[serde(default)]
+    pub data: Option<serde_json::Map<String, serde_json::Value>>,
+    #[serde(default)]
+    pub state: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

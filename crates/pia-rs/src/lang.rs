@@ -5,7 +5,7 @@ use std::{
 
 use serde_derive::{Deserialize, Serialize};
 
-use crate::{ConstString, ServerCode};
+use crate::ServerCode;
 
 // No support for languages other than en-US for now, unfortunately :(
 // this is just a scaffold so far
@@ -22,10 +22,10 @@ pub struct LanguageRegistry {
 impl LanguageRegistry {}
 
 pub struct ServerDisplay {
-    pub name: ConstString,
-    pub prefix: Option<ConstString>,
+    pub name: String,
+    pub prefix: Option<String>,
 }
 
 #[derive(Debug, Clone, Hash, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(transparent)]
-pub struct LanguageCode(pub ConstString);
+pub struct LanguageCode(pub String);

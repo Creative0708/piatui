@@ -263,6 +263,9 @@ version = "0.1.0"
 dependencies = [
  "pia-rs",
  "ratatui",
+ "serde",
+ "serde_derive",
+ "serde_json",
 ]
 
 [[package]]

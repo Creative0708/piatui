@@ -47,11 +47,13 @@ impl<'de> de::Deserialize<'de> for OptionalIpv4Addr {
     where
         D: serde::Deserializer<'de>,
     {
-        let s = <&str>::deserialize(deserializer)?;
+        let s = <std::borrow::Cow<'_, str>>::deserialize(deserializer)?;
         Ok(if s.is_empty() {
             Self(None)
         } else {
-            Self(Some(net::Ipv4Addr::from_str(s).map_err(de::Error::custom)?))
+            Self(Some(
+                net::Ipv4Addr::from_str(&s).map_err(de::Error::custom)?,
+            ))
         })
     }
 }

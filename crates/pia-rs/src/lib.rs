@@ -1,6 +1,6 @@
 pub mod event;
 mod util;
-pub use util::{ConstString, ServerCode};
+pub use util::ServerCode;
 mod connection;
 mod jsonrpc;
 mod lang;

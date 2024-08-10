@@ -1,6 +1,6 @@
 use std::io;
 
-use pia_rs::event::state::DaemonState;
+use pia_rs::event::daemon::DaemonState;
 use ratatui::{
     crossterm::{self, event::MouseButton},
     layout::Alignment,
@@ -29,24 +29,61 @@ impl App {
         loop {
             let res = self.reciever.poll();
             match res {
-                Ok(e) => match *e.event {
-                    pia_rs::event::DaemonEventInner::Data([data]) => {
-                        self.state = Some(data.state);
-                    }
+                Ok(e) => match *e {
+                    pia_rs::event::daemon::DaemonEvent::Data([data]) => match self.state {
+                        None => {
+                            self.state = Some(serde_json::from_value(serde_json::Value::Object(
+                                data.state.unwrap(),
+                            ))?);
+                        }
+                        Some(ref mut state) => {
+                            if let Some(new_state) = data.state {
+                                let serde_json::Value::Object(mut object) =
+                                    serde_json::to_value(&state)?
+                                else {
+                                    unreachable!();
+                                };
+                                for (key, value) in new_state {
+                                    object[&key] = value;
+                                }
+                                *state = serde_json::from_value(serde_json::Value::Object(object))?;
+                            }
+                        }
+                    },
                 },
                 Err(err) if err.kind() == io::ErrorKind::WouldBlock => break,
                 Err(err) => return Err(err),
             }
         }
-        while crossterm::event::poll(std::time::Duration::ZERO)? {
-            match crossterm::event::read()? {
-                crossterm::event::Event::Key(e)
-                    if e.code == crossterm::event::KeyCode::Char('c')
-                        && e.modifiers
-                            .contains(crossterm::event::KeyModifiers::CONTROL) =>
+        use crossterm::event;
+        while event::poll(std::time::Duration::ZERO)? {
+            match event::read()? {
+                event::Event::Key(e)
+                    if e.code == event::KeyCode::Char('c')
+                        && e.modifiers.contains(event::KeyModifiers::CONTROL) =>
                 {
                     self.is_running = false;
                 }
+                event::Event::Key(event::KeyEvent {
+                    code: event::KeyCode::Char(' '),
+                    ..
+                }) => match self.state {
+                    Some(DaemonState {
+                        connection_state: pia_rs::event::daemon::ConnectionState::Disconnected,
+                        ..
+                    }) => {
+                        self.sender
+                            .send(pia_rs::event::client::ClientEvent::ConnectVPN)?;
+                    }
+                    Some(DaemonState {
+                        connection_state: pia_rs::event::daemon::ConnectionState::Connected,
+                        ..
+                    }) => {
+                        self.sender
+                            .send(pia_rs::event::client::ClientEvent::DisconnectVPN)?;
+                    }
+                    _ => (),
+                },
                 _ => (),
             }
         }
@@ -89,15 +126,16 @@ impl Widget for MainInfo<'_> {
             Line::from(vec![
                 "Connection state: ".into(),
                 self.state.map_or("...".into(), |state| {
+                    use pia_rs::event::daemon::ConnectionState as CS;
                     let string = format!("{:?}", state.connection_state);
                     match state.connection_state {
-                        pia_rs::event::data::ConnectionState::Disconnected => string.gray(),
-                        pia_rs::event::data::ConnectionState::Connecting
-                        | pia_rs::event::data::ConnectionState::Reconnecting
-                        | pia_rs::event::data::ConnectionState::DisconnectingToReconnect
-                        | pia_rs::event::data::ConnectionState::Disconnecting => string.yellow(),
-                        pia_rs::event::data::ConnectionState::Connected => string.green(),
-                        pia_rs::event::data::ConnectionState::Interrupted => string.red(),
+                        CS::Disconnected => string.gray(),
+                        CS::Connecting
+                        | CS::Reconnecting
+                        | CS::DisconnectingToReconnect
+                        | CS::Disconnecting => string.yellow(),
+                        CS::Connected => string.green(),
+                        CS::Interrupted => string.red(),
                     }
                 }),
             ]),

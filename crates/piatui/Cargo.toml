@@ -8,3 +8,6 @@ edition.workspace = true
 [dependencies]
 pia-rs = { path = "../pia-rs" }
 ratatui = "0.28.0"
+serde = { workspace = true }
+serde_derive = { workspace = true }
+serde_json = { workspace = true }
