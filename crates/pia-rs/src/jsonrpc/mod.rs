@@ -194,7 +194,7 @@ impl DaemonJSONRPCConnection {
         // TODO: add checks for if the daemon is falling behind
         let [seq_low, seq_hi] = seq_num.to_le_bytes();
 
-        self.writer.write_all(&PIA_LOCAL_SOCKET_MAGIC);
+        self.writer.write_all(&PIA_LOCAL_SOCKET_MAGIC)?;
         self.writer
             .write_all(&((seq_low as u16) << 4).to_le_bytes())?;
         self.writer
