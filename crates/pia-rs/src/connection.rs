@@ -5,9 +5,9 @@ use crate::{event, jsonrpc};
 pub use jsonrpc::TakeConnectionError;
 
 #[derive(Debug)]
-pub struct DaemonConnectionReceiver(jsonrpc::DaemonJSONRPCReceiver);
-impl DaemonConnectionReceiver {
-    fn new(inner: jsonrpc::DaemonJSONRPCReceiver) -> Self {
+pub struct DaemonConnection(jsonrpc::DaemonJSONRPCConnection);
+impl DaemonConnection {
+    fn new(inner: jsonrpc::DaemonJSONRPCConnection) -> Self {
         Self(inner)
     }
 
@@ -20,14 +20,6 @@ impl DaemonConnectionReceiver {
         }
         Ok(res?.event)
     }
-}
-
-#[derive(Debug)]
-pub struct DaemonConnectionSender(jsonrpc::DaemonJSONRPCSender);
-impl DaemonConnectionSender {
-    fn new(inner: jsonrpc::DaemonJSONRPCSender) -> Self {
-        Self(inner)
-    }
 
     pub fn send(&mut self, event: event::client::ClientEvent) -> io::Result<()> {
         let bytes = serde_json::to_vec(&event::JSONRPCMessage {
@@ -39,11 +31,7 @@ impl DaemonConnectionSender {
     }
 }
 
-pub fn take_connection(
-) -> Result<(DaemonConnectionReceiver, DaemonConnectionSender), TakeConnectionError> {
-    let (rx, tx) = jsonrpc::take_connection()?;
-    Ok((
-        DaemonConnectionReceiver::new(rx),
-        DaemonConnectionSender::new(tx),
-    ))
+pub fn take_connection() -> Result<DaemonConnection, TakeConnectionError> {
+    let connection = jsonrpc::take_connection()?;
+    Ok(DaemonConnection::new(connection))
 }

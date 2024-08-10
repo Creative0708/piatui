@@ -7,7 +7,7 @@
 use std::{
     io::{self, Read, Write},
     sync::{
-        atomic::{AtomicU16, AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicU16, AtomicU8, Ordering},
         RwLock,
     },
 };
@@ -35,7 +35,7 @@ pub struct ConnectionInfo {
     last_server_ack: AtomicU16,
     last_send_seq: AtomicU16,
 
-    remaining: AtomicU8,
+    live: AtomicBool,
 }
 
 pub static CONNECTION_INFO: ConnectionInfo = ConnectionInfo {
@@ -46,7 +46,7 @@ pub static CONNECTION_INFO: ConnectionInfo = ConnectionInfo {
     last_server_ack: AtomicU16::new(0),
     last_send_seq: AtomicU16::new(0),
 
-    remaining: AtomicU8::new(0),
+    live: AtomicBool::new(false),
 };
 
 struct GlobalConnectionInfo {
@@ -64,9 +64,8 @@ impl From<io::Error> for TakeConnectionError {
     }
 }
 
-pub fn take_connection() -> Result<(DaemonJSONRPCReceiver, DaemonJSONRPCSender), TakeConnectionError>
-{
-    if CONNECTION_INFO.remaining.load(Ordering::Acquire) != 0 {
+pub fn take_connection() -> Result<DaemonJSONRPCConnection, TakeConnectionError> {
+    if CONNECTION_INFO.live.load(Ordering::Acquire) {
         // connection still exists
         return Err(TakeConnectionError::AlreadyTaken);
     }
@@ -75,22 +74,19 @@ pub fn take_connection() -> Result<(DaemonJSONRPCReceiver, DaemonJSONRPCSender),
 
     CONNECTION_INFO.last_server_ack.store(0, Ordering::Release);
     CONNECTION_INFO.last_send_seq.store(0, Ordering::Release);
-
-    Ok((
-        DaemonJSONRPCReceiver::new(reader),
-        DaemonJSONRPCSender::new(writer),
-    ))
+    Ok(DaemonJSONRPCConnection::new(reader, writer))
 }
 
 #[derive(Debug)]
-pub struct DaemonJSONRPCReceiver {
-    inner: PlatformDaemonConnectionReader,
+pub struct DaemonJSONRPCConnection {
+    reader: PlatformDaemonConnectionReader,
+    writer: PlatformDaemonConnectionWriter,
 }
 
-impl DaemonJSONRPCReceiver {
-    fn new(inner: PlatformDaemonConnectionReader) -> Self {
-        CONNECTION_INFO.remaining.fetch_add(1, Ordering::Relaxed);
-        Self { inner }
+impl DaemonJSONRPCConnection {
+    fn new(reader: PlatformDaemonConnectionReader, writer: PlatformDaemonConnectionWriter) -> Self {
+        CONNECTION_INFO.live.store(true, Ordering::Release);
+        Self { reader, writer }
     }
 
     pub fn poll(&mut self) -> io::Result<Vec<u8>> {
@@ -102,37 +98,10 @@ impl DaemonJSONRPCReceiver {
                     .last_server_ack
                     .store(seq_num, Ordering::Release);
             } else {
+                self.write_raw(seq_num, &[])?;
                 break Ok(msg);
             }
         }
-    }
-
-    fn read_exact(&mut self, mut buf: &mut [u8], block: bool) -> io::Result<()> {
-        let mut is_first_loop: bool = true;
-        loop {
-            let res = self.inner.read(buf);
-
-            match res {
-                Ok(0) => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
-                Ok(read) => {
-                    buf = &mut buf[read..];
-                    if buf.is_empty() {
-                        break;
-                    }
-                }
-                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
-                    if !block && is_first_loop {
-                        return Err(err);
-                    }
-                    // other side is still writing; sleep for a bit
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                }
-                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
-                Err(err) => return Err(err),
-            }
-            is_first_loop = false;
-        }
-        Ok(())
     }
 
     /// Polls a message from the connection and returns the sequence number and its contents.
@@ -172,55 +141,74 @@ impl DaemonJSONRPCReceiver {
         self.read_exact(&mut buf, true)?;
         Ok((seq_num, buf))
     }
-}
 
-impl Drop for DaemonJSONRPCReceiver {
-    fn drop(&mut self) {
-        CONNECTION_INFO.remaining.fetch_sub(1, Ordering::Relaxed);
-    }
-}
+    fn read_exact(&mut self, mut buf: &mut [u8], block: bool) -> io::Result<()> {
+        let mut is_first_loop: bool = true;
+        loop {
+            let res = self.reader.read(buf);
 
-#[derive(Debug)]
-pub struct DaemonJSONRPCSender {
-    inner: PlatformDaemonConnectionWriter,
-}
-impl DaemonJSONRPCSender {
-    fn new(inner: PlatformDaemonConnectionWriter) -> Self {
-        CONNECTION_INFO.remaining.fetch_add(1, Ordering::Relaxed);
-        Self { inner }
+            match res {
+                Ok(0) => return Err(io::Error::from(io::ErrorKind::UnexpectedEof)),
+                Ok(read) => {
+                    buf = &mut buf[read..];
+                    if buf.is_empty() {
+                        break;
+                    }
+                }
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    if !block && is_first_loop {
+                        return Err(err);
+                    }
+                    // other side is still writing; sleep for a bit
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(err) if err.kind() == io::ErrorKind::Interrupted => {}
+                Err(err) => return Err(err),
+            }
+            is_first_loop = false;
+        }
+        Ok(())
     }
 
     pub fn write(&mut self, bytes: &[u8]) -> io::Result<()> {
+        self.write_raw(
+            CONNECTION_INFO
+                .last_send_seq
+                .fetch_add(1, Ordering::SeqCst)
+                .wrapping_add(1),
+            bytes,
+        )
+    }
+    fn write_raw(&mut self, seq_num: u16, bytes: &[u8]) -> io::Result<()> {
         // can't do .into() :pensive:
         const VALID_MESSAGE_SIZES_USIZE: std::ops::RangeInclusive<usize> =
             *VALID_MESSAGE_SIZES.start() as usize..=*VALID_MESSAGE_SIZES.end() as usize;
 
-        assert!(VALID_MESSAGE_SIZES_USIZE.contains(&bytes.len()));
-
-        let seq = CONNECTION_INFO
-            .last_send_seq
-            .fetch_add(1, Ordering::SeqCst)
-            .wrapping_add(1);
+        assert!(
+            bytes.is_empty() || VALID_MESSAGE_SIZES_USIZE.contains(&bytes.len()),
+            "message is not an ack and its len {} is not in range of {:?}",
+            bytes.len(),
+            VALID_MESSAGE_SIZES_USIZE
+        );
 
         // TODO: add checks for if the daemon is falling behind
-        let [seq_low, seq_hi] = seq.to_le_bytes();
+        let [seq_low, seq_hi] = seq_num.to_le_bytes();
 
-        self.inner
+        self.writer.write_all(&PIA_LOCAL_SOCKET_MAGIC);
+        self.writer
             .write_all(&((seq_low as u16) << 4).to_le_bytes())?;
-        self.inner
+        self.writer
             .write_all(&((seq_hi as u16) << 4).to_le_bytes())?;
-        self.inner.write_all(&(bytes.len() as u32).to_le_bytes())?;
-        self.inner.write_all(bytes)?;
+        self.writer.write_all(&(bytes.len() as u32).to_le_bytes())?;
+        self.writer.write_all(bytes)?;
+        self.writer.flush()?;
 
         Ok(())
     }
-
-    pub fn flush(&mut self) -> io::Result<()> {
-        self.inner.flush()
-    }
 }
-impl Drop for DaemonJSONRPCSender {
+
+impl Drop for DaemonJSONRPCConnection {
     fn drop(&mut self) {
-        CONNECTION_INFO.remaining.fetch_sub(1, Ordering::Relaxed);
+        CONNECTION_INFO.live.store(false, Ordering::Release);
     }
 }

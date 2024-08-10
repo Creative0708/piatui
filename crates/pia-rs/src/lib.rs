@@ -5,4 +5,4 @@ mod connection;
 mod jsonrpc;
 mod lang;
 
-pub use connection::{take_connection, DaemonConnectionReceiver, DaemonConnectionSender};
+pub use connection::{take_connection, DaemonConnection};

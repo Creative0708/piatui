@@ -12,8 +12,7 @@ use ratatui::{
 
 #[derive(Debug)]
 pub struct App {
-    reciever: pia_rs::DaemonConnectionReceiver,
-    sender: pia_rs::DaemonConnectionSender,
+    conn: pia_rs::DaemonConnection,
 
     is_running: bool,
     state: Option<DaemonState>,
@@ -27,7 +26,7 @@ impl App {
     }
     pub fn handle_events(&mut self) -> io::Result<()> {
         loop {
-            let res = self.reciever.poll();
+            let res = self.conn.poll();
             match res {
                 Ok(e) => match *e {
                     pia_rs::event::daemon::DaemonEvent::Data([data]) => match self.state {
@@ -72,14 +71,14 @@ impl App {
                         connection_state: pia_rs::event::daemon::ConnectionState::Disconnected,
                         ..
                     }) => {
-                        self.sender
+                        self.conn
                             .send(pia_rs::event::client::ClientEvent::ConnectVPN)?;
                     }
                     Some(DaemonState {
                         connection_state: pia_rs::event::daemon::ConnectionState::Connected,
                         ..
                     }) => {
-                        self.sender
+                        self.conn
                             .send(pia_rs::event::client::ClientEvent::DisconnectVPN)?;
                     }
                     _ => (),
@@ -93,10 +92,9 @@ impl App {
 }
 impl Default for App {
     fn default() -> Self {
-        let (reciever, sender) = pia_rs::take_connection().unwrap();
+        let conn = pia_rs::take_connection().unwrap();
         Self {
-            reciever,
-            sender,
+            conn,
             is_running: true,
             state: None,
         }
